@@ -1,0 +1,25 @@
+version: '3'
+
+services:
+  client:
+    image: plantpulse/client
+    build: ./plantpulse
+    ports:
+      - "8080:3000"
+
+  server:
+    image: plantpulse/server
+    build: ./server
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+
+  mongo:
+    image: plantpulse/db
+    build: ./DB
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 4%QXdM4SMLUKfuvB
+    volumes:
+      - ./mongo-data:/data/db/plantpulse
