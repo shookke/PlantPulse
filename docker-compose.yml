@@ -1,4 +1,3 @@
-version: '3'
 
 services:
   client:
@@ -14,12 +13,20 @@ services:
       - "3000:3000"
     depends_on:
       - mongo
+    environment:
+      SECRET_KEY: b&XPYPZgJb4BgTqwo4aQu9lpAhmscrg8JAHwT4&oKDa7okhV6xXLD#fkttx8WLdt
+      MONGO_USER: dbuser
+      MONGO_PW: i2kjrLCFEkf7o
+      MONGODB_URI: mongodb://mongo/plantpulse
 
   mongo:
     image: plantpulse/db
     build: ./DB
+    ports:
+      - 27017:27017
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: 4%QXdM4SMLUKfuvB
+      MONGO_INITDB_ROOT_PASSWORD: 4QXdM4SMLUKfuvB
     volumes:
       - ./mongo-data:/data/db/plantpulse
+      - ./DB/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js
