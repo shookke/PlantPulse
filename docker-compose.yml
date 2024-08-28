@@ -4,13 +4,13 @@ services:
     image: plantpulse/client
     build: ./plantpulse
     ports:
-      - "8080:3000"
+      - "3000:3000"
 
   server:
     image: plantpulse/server
     build: ./server
     ports:
-      - "3000:3000"
+      - "3001:3001"
     depends_on:
       - mongo
     environment:

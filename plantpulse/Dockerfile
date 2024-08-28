@@ -11,7 +11,7 @@ COPY . /app
 RUN npm install
 
 # Make port 3000 available from outside the container
-EXPOSE 8080
+EXPOSE 3000
 
 # Run command to start the app when the container starts
 CMD ["npm", "start"]

@@ -1,14 +1,17 @@
 const express = require('express');
+const mongoose = require('mongoose');
+const authMiddleware = require('../middlewares/auth');
 const Device = require('../models/Device');
 const User = require('../models/User');
 
 const router = express.Router();
 
-router.post('/register-device', async (req, res) => {
+router.post('/register-device', authMiddleware,async (req, res) => {
   try {
     // Register new device
-    const { userId, deviceMAC, plantType } = req.body;
-    const user = await User.findById(userId);
+    const { deviceMAC, plantType } = req.body;
+    if(!deviceMAC || !plantType){ return res.status(500).json({ message:'Missing fields' }); }
+    const user = await User.findById(req.user.id);
     const newDevice = new Device({ deviceMAC, plantType, user });
     await newDevice.save();
     res.status(201).json(newDevice);
@@ -19,10 +22,10 @@ router.post('/register-device', async (req, res) => {
   }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    // Fetch devices
-    const deviceList = await Device.find({ user: req.body.userId }).exec();
+    // Fetch devices of user
+    const deviceList = await Device.find({ user: req.user.id }).exec();
     res.json({ devices: deviceList});
   } 
   catch (error) {
@@ -31,7 +34,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:deviceId', async (req, res) => {
+router.get('/:deviceId', authMiddleware, async (req, res) => {
   try {
     // Fetch readings for device
     const { deviceId } = req.params;

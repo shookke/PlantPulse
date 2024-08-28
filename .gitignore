@@ -1,4 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+node_modules
+package-lock.json
+package.json
 
 # Testing
 /mongo-data
@@ -6,3 +9,5 @@
 # Dependencies
 /plantpulse/node_modules
 /server/node_modules
+/.vscode
+/openapi
