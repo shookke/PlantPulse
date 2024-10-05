@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const LineGraph = ({ title, data }) => {
     return (
-        <div style={{ marginBottom: '24px' }}>
+        <div className='bg-white shadow-md rounded-lg pl-0 pr-10'>
             <h3>{title}</h3>
             <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={data}>

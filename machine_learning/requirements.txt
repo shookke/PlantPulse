@@ -1,0 +1,6 @@
+fastapi[standard]>=0.112.0
+pydantic>=2.7.0,<3.0.0
+minio>=7.2.8
+pillow>=9.4.0
+numpy==1.25.0
+celery[redis]==5.2.6

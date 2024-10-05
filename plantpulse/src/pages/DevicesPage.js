@@ -1,6 +1,7 @@
 // src/pages/DevicesPage.js
 import React, { useEffect, useState } from 'react';
 import GridView from '../components/GridView';
+import ExpandableLeftMenu from '../components/ExpandableLeftMenu';
 
 const DevicesPage = ({ baseUrl }) => {
     const [devices, setDevices] = useState([]);
@@ -15,18 +16,18 @@ const DevicesPage = ({ baseUrl }) => {
                 setLoading(false);
                 return;
             }
-
+    
             try {
                 const response = await fetch(`${baseUrl}/devices/`, {
                     headers: {
                         Authorization: `${token}`,
                     },
                 });
-
+    
                 if (!response.ok) {
                     throw new Error('Failed to fetch devices');
                 }
-
+    
                 const data = await response.json();
                 setDevices(data.devices);
             } catch (err) {
@@ -35,17 +36,19 @@ const DevicesPage = ({ baseUrl }) => {
                 setLoading(false);
             }
         };
-
-        fetchDevices();
+        return () => {
+            fetchDevices();
+        }
     }, [baseUrl]);
 
     if (loading) return <p>Loading...</p>;
     if (error) return <p>{error}</p>;
 
     return (
-        <div>
+        <div className='flex-1 p-4'>
             <h1>Your Devices</h1>
-            <GridView devices={devices} baseUrl={baseUrl} />
+            <p>You have {devices.length} device{devices.length!==  1 ? 's' : ''}:</p>
+            {devices.length ===  0 ? <p>No devices found.</p> : <GridView devices={devices} baseUrl={baseUrl} />}
         </div>
     );
 };

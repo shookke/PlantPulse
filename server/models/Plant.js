@@ -1,13 +1,15 @@
 const mongoose = require('mongoose');
 
-const plantSchema = new Schema({
-    plantType: PlantType,
-    userId: String,
-    container: Container,
-    location: Location,
+const plantSchema = new mongoose.Schema({
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    plantType: { type: mongoose.Schema.Types.ObjectId, ref: 'PlantType', required: true },
+    container: { type: mongoose.Schema.Types.ObjectId, ref: 'Container' },
+    area: { type: mongoose.Schema.Types.ObjectId, ref: 'Area' },
     datePlanted: Date,
     dateHarvested: Date,
-    lastFertisationDate: Date,
+    lastFertilization: Date,
 }, {timestamps: true});
 
-module.exports = mongoose.model('Plant', plantSchema);
+const Plant = mongoose.model('Plant', plantSchema);
+
+module.exports = Plant;
