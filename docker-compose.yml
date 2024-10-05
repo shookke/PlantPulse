@@ -1,10 +1,18 @@
-
 services:
   client:
     image: plantpulse/client
     build: ./plantpulse
     ports:
       - "3000:3000"
+    develop:
+      watch:
+        - action: sync
+          path: ./plantpulse
+          target: /app
+          ignore:
+            - node_modules/
+        - action: rebuild
+          path: package.json
 
   server:
     image: plantpulse/server
@@ -13,20 +21,73 @@ services:
       - "3001:3001"
     depends_on:
       - mongo
-    environment:
-      SECRET_KEY: b&XPYPZgJb4BgTqwo4aQu9lpAhmscrg8JAHwT4&oKDa7okhV6xXLD#fkttx8WLdt
-      MONGO_USER: dbuser
-      MONGO_PW: i2kjrLCFEkf7o
-      MONGODB_URI: mongodb://mongo/plantpulse
+      - machine_learning
+
+    env_file:
+      - ${ENVIRONMENT}.env
+
+  machine_learning:
+    image: plantpulse/machine_learning
+    build: ./machine_learning
+    ports:
+      - "5000:5000"
+    depends_on:
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+    env_file:
+      - ${ENVIRONMENT}.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: "nvidia"
+              count: all  # Or specify a specific number of GPUs if needed
+              capabilities: [gpu]
+
+  worker:
+    image: plantpulse/worker
+    build: ./worker
+    command: celery -A tasks worker --loglevel=info
+    env_file:
+      - ${ENVIRONMENT}.env
+
+  redis:
+    image: redis/redis-stack:latest
+    ports:
+      - "6379:6379"
+      - "8001:8001"
+    volumes:
+      - ./redis-data:/data
+    env_file:
+      - ${ENVIRONMENT}.env
+   
+  minio:
+    image: plantpulse/blob
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+     - ./minio-data:/data
+    env_file:
+      - ${ENVIRONMENT}.env
+    command: server /data --address ":9000" --console-address ":9001"
 
   mongo:
     image: plantpulse/db
     build: ./DB
     ports:
       - 27017:27017
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: 4QXdM4SMLUKfuvB
+    
     volumes:
       - ./mongo-data:/data/db/plantpulse
       - ./DB/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js
+    env_file:
+      - ${ENVIRONMENT}.env
+
+

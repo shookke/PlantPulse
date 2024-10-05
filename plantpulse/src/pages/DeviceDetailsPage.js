@@ -56,7 +56,7 @@ const DeviceDetailsPage = ({ baseUrl }) => {
             <img src={`${device.image}`} alt={`${device.plantType}`} />
             <WaterLevel title="Water Level" level={readings[0].waterLevel}/>
             <h2>Plant Type: {device.plantType}</h2>
-            <div className='columns-3'>
+            <div className='columns-3 py-10'>
                 <LineGraph title="Temperature" data={readings.map(r => ({date: new Date(r.createdAt), value: r.temperature}))} />
                 <LineGraph title="Humidity" data={readings.map(r => ({date: new Date(r.createdAt), value: r.humidity}))} />
                 <LineGraph title="Light Level" data={readings.map(r => ({date: new Date(r.createdAt), value: r.lightLevel}))} />

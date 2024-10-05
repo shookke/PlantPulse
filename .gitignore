@@ -2,12 +2,18 @@
 node_modules
 package-lock.json
 package.json
+dev.env
+prod.env
 
 # Testing
 /mongo-data
+/redis-data
+/.42c
 
 # Dependencies
 /plantpulse/node_modules
 /server/node_modules
 /.vscode
 /openapi
+/minio-data
+machine_learning/app/plantpulse_ml/models/*.keras

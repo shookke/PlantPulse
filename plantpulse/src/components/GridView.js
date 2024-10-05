@@ -6,7 +6,7 @@ const placeholderImage = 'https://via.placeholder.com/150';
 
 const GridView = ({ devices, baseUrl }) => {
     return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+        <div className="grid grid-flow-col auto-cols-max">
             {devices.map(device => (
                 <DeviceCard key={device._id} device={device} baseUrl={baseUrl} />
             ))}
@@ -33,14 +33,15 @@ const DeviceCard = ({ device, baseUrl }) => {
 
                 const data = await response.json();
                 if (data.readings.length > 0) {
-                    setLatestReading(data.readings[0]); // Assuming the first one is the latest
+                    setLatestReading(data.readings[data.readings.length - 1]); // Assuming the last one is the latest
                 }
             } catch (err) {
                 console.error(err.message);
             }
         };
-
-        fetchLatestReading();
+        return () => {
+            fetchLatestReading();
+        }
     }, [device._id, baseUrl]);
 
     const handleClick = () => {
@@ -48,14 +49,16 @@ const DeviceCard = ({ device, baseUrl }) => {
     };
 
     return (
-        <div onClick={handleClick} style={{ border: '1px solid #ccc', padding: '16px', borderRadius: '8px', cursor: 'pointer' }}>
+        <div className='border border-solid border-gray-200 rounded-lg shadow-md p-2' onClick={handleClick}>
             <img src={device.image || placeholderImage} alt={device.plantType} style={{ width: '100%', borderRadius: '8px' }} />
             <h3>{device.plantType}</h3>
             {latestReading ? (
                 <div>
                     <p>Temperature: {latestReading.temperature}°C</p>
                     <p>Humidity: {latestReading.humidity}%</p>
-                    <p>Light Level: {latestReading.lightLevel}%</p>
+                    <p>UV A: {latestReading.uvA}%</p> 
+                    <p>UV B: {latestReading.uvB}%</p> 
+                    <p>UV C: {latestReading.uvC}%</p>
                 </div>
             ) : (
                 <p>Loading latest reading...</p>

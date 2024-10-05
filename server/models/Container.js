@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 
-const ContainerSchema = new Schema({
+const containerSchema = new mongoose.Schema({
     name: { type: String, required: true },
-    description:{ type:String},
+    image: String,
+    description: String,
     width: Number,
     height: Number,
     length:Number,
@@ -10,4 +11,6 @@ const ContainerSchema = new Schema({
     volume: Number,
 });
 
-module.exports = mongoose.model('Container', ContainerSchema);
+const Container = mongoose.model('Container', containerSchema)
+
+module.exports = Container;

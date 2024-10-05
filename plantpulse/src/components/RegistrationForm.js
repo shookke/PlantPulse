@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import InputField from './InputField';
 import ValidationMessages from './ValidationMessages';
+import Button from './Button';
 
 const RegistrationForm = ({ baseUrl }) => {
     const [formData, setFormData] = useState({
@@ -137,7 +138,9 @@ const RegistrationForm = ({ baseUrl }) => {
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
             />
-            <button type="submit">Register</button>
+            <Button theme="action" type="submit">
+                Register
+            </Button>
         </form>
     );
 };

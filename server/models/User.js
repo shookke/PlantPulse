@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
     match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please fill a valid email address']
   },
   password: String,
+  enabled: Boolean,
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);

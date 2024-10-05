@@ -1,11 +1,13 @@
 const express = require('express');
-var morgan = require("morgan");
+const morgan = require("morgan");
 const cors = require('cors');
+const redisClient = require('./config/redisClient'); // Import Redis client
 
 // Import Models
 require('./models/User');
 require('./models/Device');
 require('./models/Reading');
+
 
 // App Init
 const app = express();
@@ -14,6 +16,8 @@ const app = express();
 const usersRouter = require('./routes/users');
 const devicesRouter = require('./routes/devices');
 const readingsRouter = require('./routes/readings');
+const plantsRouter = require('./routes/plants');
+const plantTypesRouter = require('./routes/plantTypes');
 const port = 3001;
 
 // Set up mongoose connection
@@ -24,11 +28,6 @@ const db = require('./db');
 // API Key
 const apiKeys = ['9iKUKv2nD$pxWv%v*f6Jdxt&FgcRuM&up6Z*ZBNS2krxxHKj4UnBi9yVKPPJNCj#qbeYoZHfwct&oCVy&cuCsRZeSQp3BoDiM8qrJ94H$Pe63CLb*xD5s@eK75VX69e#'];
 
-// main().catch((err) => console.log(err));
-
-// async function main() {
-  
-// }
 // Custom CORS configuration
 const corsOptions = {
   origin: 'http://localhost:3000', // Replace with your frontend domain
@@ -36,6 +35,7 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization'], // Specify allowed headers
 };
 
+// Cors setup
 app.use(cors(corsOptions));
 
 // Parse JSON requests
@@ -47,11 +47,21 @@ app.use(morgan("common"));
 // Define a route for GET requests to /
 // app.use("/api/0.1/", routes);
 // app.use('/api/0.1/db_status', dbStatus);
-app.use('/api/users', usersRouter);
-app.use('/api/devices', devicesRouter);
-app.use('/api/readings', readingsRouter);
+app.use('/api/v1/users', usersRouter);
+app.use('/api/v1/devices', devicesRouter);
+app.use('/api/v1/readings', readingsRouter);
+app.use('/api/v1/plants', plantsRouter);
+app.use('/api/v1/plantTypes', plantTypesRouter);
 
 // Start the server
 app.listen(port, () => {
   console.log(`Server started on port ${port}`);
+});
+
+// Graceful shutdown for Redis client
+process.on('SIGINT', () => {
+  redisClient.quit(() => {
+    console.log('Redis client disconnected on app termination');
+    process.exit(0);
+  });
 });

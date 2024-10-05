@@ -1,0 +1,15 @@
+openapi: '3.0.3'
+info:
+  title: API Title
+  version: '1.0'
+servers:
+  - url: http://10.200.11.143:3000/api
+paths:
+  /users/login:
+    post:
+      requestBody: 
+        'email': 'shookke@gmail.com'
+        'password': 'Firefly1#'
+      responses:
+        '200':
+          description: OK

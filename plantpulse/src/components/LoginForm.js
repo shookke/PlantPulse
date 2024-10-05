@@ -1,5 +1,37 @@
 // src/components/LoginForm.js
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import InputField from './InputField';
+import Button from './Button';
+
+const getExpirationDate = (expiration) => {
+    let  date  = new Date();
+    let unit = expiration.slice(-1); // Get the unit of time
+    let  value = parseInt(expiration.slice(0, -1), 10); // Get the value of time
+    
+    if (isNaN(value)) {
+        throw new Error("Invalid expiresIn format");
+    }
+    
+    switch (unit) {
+        case 'y':
+            date.setFullYear(date.getFullYear() + value);
+            break;
+        case'm':
+           date.setMonth(date.getMonth() + value);
+           break;
+        case'd':
+           date.setDate(date.getDate() + value);
+           break;
+        case'h':
+          date.setHours(date.getHours() + value);
+          break;
+        default:
+            date.setDate(date.getDate() + value);
+            break;
+    }
+    return  date;
+};
 
 const LoginForm = ({ baseUrl }) => {
     const [formData, setFormData] = useState({
@@ -10,6 +42,7 @@ const LoginForm = ({ baseUrl }) => {
 
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -37,8 +70,9 @@ const LoginForm = ({ baseUrl }) => {
 
             if (response.ok) {
                 localStorage.setItem('token', data.token);
+                localStorage.setItem('expiration', getExpirationDate(data.expiresIn));
                 alert('User logged in successfully!');
-                // Redirect to a different page if needed
+                navigate('/');
             } else {
                 setError(data.message || 'Login failed');
             }
@@ -52,26 +86,20 @@ const LoginForm = ({ baseUrl }) => {
     return (
         <form onSubmit={handleSubmit}>
             {error && <p className="error">{error}</p>}
-            <div>
-                <label>Email:</label>
-                <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                />
-            </div>
-            <div>
-                <label>Password:</label>
-                <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    required
-                />
-            </div>
+            <InputField
+                label="Email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+            />
+            <InputField
+                label="Password"
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleInputChange}
+            />
             <div>
                 <label>Remember me:</label>
                 <input 
@@ -81,9 +109,9 @@ const LoginForm = ({ baseUrl }) => {
                     onChange={handleInputChange}
                 />
             </div>
-            <button type="submit" disabled={loading}>
+            <Button theme="action" disabled={loading} type="submit">
                 {loading ? 'Logging in...' : 'Login'}
-            </button>
+            </Button>
         </form>
     );
 };
