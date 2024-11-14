@@ -1,12 +1,13 @@
 const express = require('express');
 const authMiddleware = require('../middlewares/auth');
+const jwt = require('jsonwebtoken');
 const Device = require('../models/Device');
-const User = require('../models/User');
 const Plant = require('../models/Plant');
 const PlantType = require('../models/PlantType');
 const { cacheData, invalidateCacheByKey } = require('../utils/cacheUtils'); // Import cache helpers
 
 const router = express.Router();
+const SECRET_KEY = process.env.SECRET_KEY;
 
 // Apply authentication middleware to all routes
 router.use(authMiddleware);
@@ -31,46 +32,59 @@ router.use(authMiddleware);
 //       }
 router.post('/', async (req, res) => {
   try {
-    const { device, plant, connectTo, plantTypeId } = req.body;
+    const { device, plant, connectTo, plantTypeId, plantName, plantId } = req.body;
+    var token = null;
 
     // Validate required fields
-    if (!device.deviceUUID || (!plant && !plantTypeId)) {
+    if (!device.deviceUUID || (!device.deviceUUID && ((!plant && (!plantTypeId && !plantName)) && !plantId))) {
       return res.status(500).json({ message: 'Missing fields' });
     }
 
     // Set user reference
     device.user = req.user.id;
 
+    // Create new device
+    const newDevice = new Device(device);
+
     // Handle plant creation
     if (plant) {
       plant.user = req.user.id;
       const newPlant = await Plant.create(plant);
-      device.plants = [newPlant];
+      newDevice.plants.push(newPlant);
     }
 
     if (plantTypeId) {
       const plantType = await PlantType.findById(plantTypeId);
-      const newPlant = await Plant.create({ user: req.user.id, plantType: plantType });
-      device.plants = [newPlant];
+      const newPlant = await Plant.create({ user: req.user.id, plantType: plantType, plantName: (plantName || plantType.commonName) });
+      newDevice.plants.push(newPlant);
     }
 
-    // Create new device
-    const newDevice = new Device(device);
+    if (plantId) {
+      const newPlant = await Plant.findById(plantId);
+      newDevice.plants.push(newPlant);
+    }
 
     // If it's a sensor, update the camera device to connect to
-    if (device.deviceType === 'sensor') {
+    if (device.deviceType === 'sensor' && connectTo) {
       const deviceHub = await Device.findById(connectTo);
       deviceHub.connectedDevices.push(newDevice);
       await deviceHub.save();
+      await invalidateCacheByKey(`device:${deviceHub.id}`)
     }
 
     // Save the new device
     await newDevice.save();
 
+    // Generate Token for camera devices
+    if (device.deviceType === 'camera') {
+      const expiresIn = '365d';
+      token = jwt.sign({ id: req.user.id }, SECRET_KEY,  { expiresIn });
+    }
     // Invalidate cache for devices list
     await invalidateCacheByKey(`devices:${req.user.id}`);
+   
 
-    res.status(201).json(newDevice);
+    res.status(201).json({ token: token, device: newDevice });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error registering device' });
@@ -82,6 +96,10 @@ router.post('/', async (req, res) => {
 // Requires authentication
 // Can only update plant and if sensor the hub it connects to
 // Body: { "toAdd": {
+//         "newPlant": {
+//           "plantType": "PlantTypeId",
+//           "plantName": "User input plant name'"
+//         },
 //         "plants": ["PlantId1", "PlantId2"],
 //         "connectTo": "DeviceID
 //       },
@@ -108,12 +126,22 @@ router.patch('/:deviceID', async (req, res) => {
 
     // Handle additions
     if (toAdd) {
+      if (toAdd.newPlant) {
+        const newPlant = toAdd.newPlant;
+        newPlant.plantType = await PlantType.findById(newPlant.plantType);
+        newPlant.user = req.user.id;
+        const newPlantPromise = Plant.create(newPlant);
+        promises.push(newPlantPromise.then((createdPlant) => {
+          device.plants.push(createdPlant);
+        }));
+      }
+
       if (toAdd.plants) {
-        const newPlantPromises = toAdd.plants.map(async (plant) => {
-          const newPlant = await Plant.create(plant);
-          device.plants.push(newPlant);
+        toAdd.plants.forEach((plant) => {
+          if (!device.plants.includes(plant)) {
+            device.plants.push(plant);
+          }
         });
-        promises.push(...newPlantPromises);
       }
 
       if (toAdd.connectTo) {
@@ -166,7 +194,28 @@ router.get('/', async (req, res) => {
 
   try {
     const devices = await cacheData(redisKey, async () => {
-      return Device.find({ user: req.user.id }).exec();
+      return Device.find({ user: req.user.id })
+      .populate({ 
+        path: 'connectedDevices',
+        populate: [
+          { path:'plants',
+            populate: [
+              { path:'plantType' },
+              { path:'container' },
+              { path:'area' }
+            ]
+           },
+        ]
+      })
+      .populate({ 
+        path: 'plants',
+        populate: [
+          { path:'plantType' },
+          { path:'container' },
+          { path:'area' }
+        ]
+      })
+      .exec();
     });
 
     res.json({ devices });
@@ -183,9 +232,27 @@ router.get('/:deviceId', async (req, res) => {
 
   try {
     const device = await cacheData(redisKey, async () => {
-      const foundDevice = await Device.findById(deviceId);
+      const foundDevice = await Device.findById(deviceId)
+      .populate({ 
+        path: 'connectedDevices',
+        populate: [
+          { path:'plants',
+            populate: 'plantType'
+           },
+        ]
+      })
+      .populate({ 
+        path: 'plants',
+        populate: [
+          { path:'plantType' },
+          { path:'container' },
+          { path:'area' }
+        ]
+      })
+      .exec();
+
       if (!foundDevice) {
-        throw new Error('Device not found');
+        console.error('No Device Found.');
       }
       return foundDevice;
     });
@@ -205,6 +272,11 @@ router.delete('/:deviceId', async (req, res) => {
     // Delete the device
     await Device.findByIdAndDelete(deviceId);
 
+    await Device.updateMany(
+      { connectedDevices: deviceId },
+      { $pull: { connectedDevices: deviceId } }
+    );
+
     // Invalidate cache for this device and the devices list
     await invalidateCacheByKey(`device:${deviceId}`);
     await invalidateCacheByKey(`devices:${req.user.id}`);
@@ -215,5 +287,34 @@ router.delete('/:deviceId', async (req, res) => {
     res.status(500).json({ message: 'Error deleting device' });
   }
 });
+
+router.post('/status/:deviceUUID', async (req, res) => {
+  try {
+    const { deviceUUID } = req.params;
+    const { batteryLevel } = req.body;
+    const redisKey = `devices:${deviceUUID}`;
+
+    const device = await Device.findOne({deviceUUID: deviceUUID});
+
+    // Check if device exists
+    if (!device) {
+      throw new Error('Device not found');
+    }
+
+    // Update device status
+    device.batteryLevel = batteryLevel;
+    device.save();
+
+    // Invalidate cache for this device and the devices list
+    await invalidateCacheByKey(`device:${deviceId}`);
+    await invalidateCacheByKey(`devices:${req.user.id}`);
+
+    res.status(200).json({ device });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error updating device' });
+  }
+});
+
 
 module.exports = router;

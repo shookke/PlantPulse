@@ -70,8 +70,7 @@ const LoginForm = ({ baseUrl }) => {
 
             if (response.ok) {
                 localStorage.setItem('token', data.token);
-                localStorage.setItem('expiration', getExpirationDate(data.expiresIn));
-                alert('User logged in successfully!');
+                localStorage.setItem('expiration', getExpirationDate(data.expiresIn).getTime());
                 navigate('/');
             } else {
                 setError(data.message || 'Login failed');

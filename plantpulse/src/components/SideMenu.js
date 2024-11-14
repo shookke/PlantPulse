@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MenuIcon, ChevronLeftIcon } from '@heroicons/react/outline';
+import { Bars3Icon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 const SideMenu = ({ items }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -9,21 +9,21 @@ const SideMenu = ({ items }) => {
   };
 
   return (
-    <div className={`flex ${isOpen ? 'w-64' : 'w-16'} h-full bg-gray-800 text-white transition-width duration-300`}>
+    <div className={`flex ${isOpen ? 'w-64' : 'w-16'} min-h-screen bg-green-900 text-white transition-width duration-300`}>
       <div className="flex flex-col w-full">
-        <div className="flex items-center justify-between p-4">
+        <div className="flex items-center justify-between p-0">
           <button onClick={toggleMenu} className="text-white">
             {isOpen ? (
               <ChevronLeftIcon className="w-6 h-6" />
             ) : (
-              <MenuIcon className="w-6 h-6" />
+              <Bars3Icon className="w-6 h-6" />
             )}
           </button>
         </div>
         {isOpen && (
-          <nav className="flex flex-col flex-grow">
+          <nav className="flex min-h-screen flex-col flex-grow">
             {items.map((item, index) => (
-              <a href={item.href} key={index} className="p-4 hover:bg-gray-700">
+              <a href={item.href} key={index} className="p-4 hover:bg-green-950 text-lg font-bold">
                 {item.label}
               </a>
             ))}

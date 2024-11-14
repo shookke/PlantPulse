@@ -3,9 +3,11 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 
 const PrivateRoute = ({ children }) => {
-    var token = localStorage.getItem('token');
-    var expiration = localStorage.getItem('expiration');
-    if (expiration <= Date.now()) { 
+    let token = localStorage.getItem('token');
+    let expiration = parseInt(localStorage.getItem('expiration'));
+    let time = Date.now();
+
+    if (expiration <= time) { 
         token = null
         expiration = null;
         localStorage.clear();

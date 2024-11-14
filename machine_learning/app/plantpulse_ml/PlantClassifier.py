@@ -5,17 +5,17 @@ import numpy as np
 import tensorflow as tf
 from minio import Minio
 from tensorflow import keras
-from app.plantpulse_ml.utils import trainplantclassifier
+from app.plantpulse_ml.utils import train_plant_classifier
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 class PlantClassifier:
     def __init__(self):
         self.model = None
         self.class_names = []
-        self.img_height = 128
-        self.img_width = 128
+        self.img_height = 224
+        self.img_width = 224
         self.minioClient = Minio(
             'minio:9000',
             access_key='ueuDvLGHm0MYLk3HBykA',
@@ -74,21 +74,25 @@ class PlantClassifier:
             img, target_size=(self.img_height, self.img_width)
         )
         img_array = tf.keras.utils.img_to_array(image)
+        img_array = img_array / 255.0  # Normalize to [0,1]
         img_array = tf.expand_dims(img_array, 0)  # Create a batch
         
         logger.debug("Making prediction")
         predictions = self.model.predict(img_array)
-        score = tf.nn.softmax(predictions[0])
+        predicted_class_index = np.argmax(predictions[0])
+        confidence = predictions[0][predicted_class_index] * 100
+
         result = {
-            "label": self.class_names[np.argmax(score)],
-            "confidence": round(100 * np.max(score), 2)
+            "label": self.class_names[predicted_class_index],
+            "confidence": round(float(confidence), 2)
         }
         logger.debug(f"Classification result: {result}")
         return result
     
-    def train(self):
+    def train(self, epochs=None):
         try:
-            trainplantclassifier()
+            train_plant_classifier.train(epochs)
+            self.load_model_and_classes()
         except Exception as e:
             logger.error(f"Error training model: {str(e)}", exc_info=True)
 

@@ -1,7 +1,8 @@
 const express = require('express');
 const morgan = require("morgan");
 const cors = require('cors');
-const redisClient = require('./config/redisClient'); // Import Redis client
+const redisClient = require('./config/redisClient');
+const taskQueue = require('./config/taskQueue');
 
 // Import Models
 require('./models/User');
@@ -52,6 +53,52 @@ app.use('/api/v1/devices', devicesRouter);
 app.use('/api/v1/readings', readingsRouter);
 app.use('/api/v1/plants', plantsRouter);
 app.use('/api/v1/plantTypes', plantTypesRouter);
+
+// Define the job processor
+taskQueue.process(async (job) => {
+  try {
+    console.log('Processing task with plant ID:', job.data.plant);
+
+    // Find the plant by ID
+    const plant = await Plant.findOne({ plantId: job.data.plant }).populate('plantType');
+    if (!plant) {
+      console.error('Plant not found for ID:', job.data.plant);
+      return;
+    }
+
+    // Retrieve plant type and acceptable metric ranges
+    const plantType = plant.plantType;
+
+    // Define the metrics to check and their acceptable ranges
+    const metrics = [
+      { name: 'temperature', value: plant.readings.temperature, min: plantType.minTemperature, max: plantType.maxTemperature },
+      { name: 'humidity', value: plant.readings.humidity, min: plantType.minHumidity, max: plantType.maxHumidity },
+      { name: 'soilMoisture', value: plant.readings.soilMoisture, min: plantType.minSoilMoisture, max: plantType.maxSoilMoisture },
+    ];
+
+    // Iterate through metrics and create Task objects if out of range
+    for (const metric of metrics) {
+      if (metric.value < metric.min || metric.value > metric.max) {
+        console.log(`Metric ${metric.name} out of range for plant ${plant.plantId}`);
+        
+        // Create a new Task for the user
+        const newTask = new Task({
+          userId: plant.userId, // Assuming the Plant model contains a reference to the user
+          plantId: plant.plantId,
+          metric: metric.name,
+          message: `The ${metric.name} value (${metric.value}) is out of the acceptable range (${metric.min} - ${metric.max}) for plant ${plant.plantId}.`,
+        });
+        
+        await newTask.save();
+        console.log('New Task created:', newTask);
+      }
+    }
+
+    console.log('Background task completed');
+  } catch (err) {
+    console.error('Error processing task:', err);
+  }
+});
 
 // Start the server
 app.listen(port, () => {

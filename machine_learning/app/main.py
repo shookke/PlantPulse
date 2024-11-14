@@ -1,12 +1,12 @@
 import os
-from typing import Union, Dict
+from typing import Dict
 from PIL import Image
 from fastapi import FastAPI, File, UploadFile, status, HTTPException
 from minio import Minio
 from minio.error import S3Error
-
 from app.plantpulse_ml.PlantClassifier import PlantClassifier
 from app.plantpulse_ml.utils import crawler
+from app.plantpulse_ml.utils.calculate_NDVI import calculate_NDVI
 
 minioClient = Minio(
     'minio:9000',
@@ -27,15 +27,21 @@ def read_root():
 
 @app.post("/plant/predict")
 def predictPlant(data: Dict[str, str]):
+    image_path = "tmp/image.jpg"
     if "filename" not in data:
         raise HTTPException(status_code=422, detail="Filename missing in the request")
     filename = data['filename']
-    minioClient.fget_object('plants', filename, "tmp/image.jpg")
-    result = plantClassifier.classify("tmp/image.jpg")
-    os.remove("tmp/image.jpg")
+    minioClient.fget_object('plants', filename, image_path)
+    result = plantClassifier.classify(image_path)
+    
+    # Generate NDVI image and store it.
+    calculate_NDVI(image_path)
+    minioClient.fput_object('plants', "ndvi_"+ filename, image_path)
+    
+    os.remove(image_path)
     return {"prediction": result}
 
-@app.post("/training/add")
+@app.post("/training")
 async def create_upload(file: UploadFile):
     try:
         result = minioClient.put_object('classifier-training', 
@@ -56,7 +62,10 @@ async def create_upload(file: UploadFile):
 def train(data: Dict[str, str]):
     if data["access"] != "admin":
         raise HTTPException(status_code=422, detail="Access denied!")
-    plantClassifier.train()
+    if data["epochs"]:
+        plantClassifier.train(int(data["epochs"]))
+    else:
+        plantClassifier.train()
 
 @app.post("/crawl")
 async def crawl(data: Dict[str, str]):

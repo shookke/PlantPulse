@@ -4,15 +4,10 @@ services:
     build: ./plantpulse
     ports:
       - "3000:3000"
-    develop:
-      watch:
-        - action: sync
-          path: ./plantpulse
-          target: /app
-          ignore:
-            - node_modules/
-        - action: rebuild
-          path: package.json
+    volumes:
+      - ./plantpulse/src:/app/src:delegated
+    environment:
+      - WATCHPACK_POLLING=true
 
   server:
     image: plantpulse/server
@@ -68,6 +63,7 @@ services:
    
   minio:
     image: plantpulse/blob
+    build: machine_learning/blob
     container_name: minio
     ports:
       - "9000:9000"
@@ -86,7 +82,6 @@ services:
     
     volumes:
       - ./mongo-data:/data/db/plantpulse
-      - ./DB/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js
     env_file:
       - ${ENVIRONMENT}.env
 

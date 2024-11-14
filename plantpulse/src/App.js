@@ -4,17 +4,23 @@ import AppRouter from './routes/AppRouter';
 
 function App() {
   const menuItems = [
-    { label: 'Home', href: '/' },
-    { label: 'About', href: '/about' },
-    { label: 'Services', href: '/services' },
-    { label: 'Contact', href: '/contact' },
+    { label: 'My Plants', href: '/' },
+    { label: 'Tasks', href: '/tasks' },
+    { label: 'Devices', href: '/devices' },
+    { label: 'Settings', href: '/contact' },
   ];
 
+  if (module.hot) {
+    module.hot.accept();
+  }
+  
   return (
-    <div className="App flex">
-      <AppRouter />
-      <SideMenu items={menuItems}/>
-    </div>
+    <>
+      <div className='flex min-h-screen'>
+        <SideMenu items={menuItems}/>
+        <AppRouter />
+      </div>
+    </>
   );
 }
 
