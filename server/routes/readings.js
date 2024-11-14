@@ -1,13 +1,14 @@
 const { nanoid } = require('nanoid');
-const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const axios = require('axios');
 const authMiddleware = require('../middlewares/auth');
 const Reading = require('../models/Reading');
 const Plant = require('../models/Plant');
-const s3 = require('../config/s3Client'); // Import S3 client
-const { cacheData, invalidateCacheByPattern } = require('../utils/cacheUtils'); // Import cache helpers
+const Device = require('../models/Device');
+const s3 = require('../config/s3Client');
+const taskQueue = require('../config/taskQueue');
+const { cacheData, invalidateCacheByPattern, invalidateCacheByKey } = require('../utils/cacheUtils'); // Import cache helpers
 
 const router = express.Router();
 
@@ -40,14 +41,19 @@ router.get('/:plantId', async (req, res) => {
   try {
     // Fetch plant readings and cache them
     const data = await cacheData(redisKey, async () => {
-      const plant = await Plant.findById(plantId);
+      const plant = await Plant.findById(plantId)
+      .populate('plantType')
+      .exec();
+
       if (!plant) throw new Error('Plant not found');
 
       const readingsList = await Reading.find({ plant: plant._id })
-        .sort({ createdAt: 1 })
+        .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .exec();
+      
+      
       return { plant, readings: readingsList };
     });
 
@@ -62,17 +68,38 @@ router.get('/:plantId', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const reading = req.body.reading;
-    const newReading = await Reading.create(reading);
-
+    
+    // Get associated device record
+    const device = await Device.findOne({ deviceUUID: reading.deviceUUID });
+    
+    if(device) {
+      // Add object refrences
+      reading.device = device._id;
+      if(device.plants.length == 0) {
+        return res.status(500).json({ message: "No plant associated with this device."});
+      }
+      reading.plant = device.plants[0];
+    }
+    
+    // Create the new reading
+    const newReading = await Reading(reading);
+    newReading.save();
+    console.log(newReading);
+    
     // Invalidate Redis cache for this plant
     const plantId = reading.plant;
     if (plantId) {
       await invalidateCacheByPattern(`plant:${plantId}:readings:page:*`);
+      await invalidateCacheByKey(`plants:${req.user.id}`);
     } else {
       console.error('Invalid plantId for cache invalidation');
     }
-
+    // Return response to client
     res.status(201).json(newReading);
+
+    // Add reading to be processed to the task queue
+    await taskQueue.add({ newReading });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error adding reading.' });
@@ -81,11 +108,16 @@ router.post('/', async (req, res) => {
 
 // Upload a photo for processing, with Redis caching for prediction results
 router.post('/upload', upload.single('file'), async (req, res) => {
-  const hash = crypto.createHash('md5').update(req.file.buffer).digest('hex');
-  const filename = nanoid() + '.jpg';
-  const redisKey = `plant:predictions:${hash}`;
+  // Check if file exists with buffer
+  if (!req.file || !req.file.buffer) {
+    return res.status(400).json({ message: 'No file uploaded or file buffer is missing'});
+  }
 
   try {
+    // Generate unique filename and use for cache key
+    const filename = nanoid() + '.jpg';
+    const redisKey = `plant:predictions:${filename}`;
+    
     // Save image in MinIO via S3 API
     const params = {
       Bucket: 'plants', // Bucket name
@@ -95,9 +127,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     };
 
     await s3.putObject(params).promise(); // Upload the file
-
+    
     // Check if prediction results are cached
-    const predictions = await cacheData(redisKey, async () => {
+    const prediction = await cacheData(redisKey, async () => {
       // Send the image filename to the machine learning service for prediction
       const response = await axios.post('http://machine_learning:5000/plant/predict', 
       { filename: filename }, 
@@ -105,8 +137,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
       return response.data;
     });
+    
+    console.log(prediction);
+    res.status(200).json({ prediction: prediction.prediction, filename: filename });
 
-    res.json(predictions);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error uploading file or processing prediction.' });

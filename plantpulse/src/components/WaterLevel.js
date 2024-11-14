@@ -1,22 +1,41 @@
 import React from 'react';
 
-const WaterLevel = ({ level }) => {
+const WaterLevel = ({ level, min, max }) => {
+  const percentage = ((level - 200) / 1800) * 100;
+  const minPercentage = ((min - 200) / 1800) * 100;
+  const maxPercentage = ((max - 200) / 1800) * 100;
+  console.log(min);
+  console.log(max);
   return (
     <div className="water-level-container">
-      <span className="raindrop-icon" />
-      <div 
-        style={{
-          height: `${level  * 100}%`,
-          backgroundColor: 'blue',
-          borderRadius: '5px'
-        }}
-      />
-      <div
-        style={{
-          height: `calc(100% - ${(level * 100).toString()})`,
-          backgroundColor: 'lightgrey'
-        }}
-      />
+      <span className="raindrop-icon">💧</span>
+      <div className="water-level-meter">
+        {/* Water Level Fill */}
+        <div
+          className="water-level-fill"
+          style={{
+            height: `${percentage}%`,
+          }}
+        />
+        {/* Min Level Indicator */}
+        <div
+          className="level-indicator min-line"
+          style={{
+            bottom: `${minPercentage}%`,
+          }}
+        >
+          Min
+        </div>
+        {/* Max Level Indicator */}
+        <div
+          className="level-indicator max-line"
+          style={{
+            bottom: `${maxPercentage}%`,
+          }}
+        >
+          Max
+        </div>
+      </div>
     </div>
   );
 };

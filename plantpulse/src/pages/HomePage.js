@@ -1,13 +1,14 @@
-// src/pages/DevicesPage.js
+// src/pages/HomePage.js
 import React, { useEffect, useState } from 'react';
+import GridView from '../components/GridView';
 
-const DevicesPage = ({ baseUrl }) => {
-    const [devices, setDevices] = useState([]);
+const HomePage = ({ baseUrl }) => {
+    const [plants, setPlants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const fetchDevices = async () => {
+        const fetchPlants = async () => {
             const token = localStorage.getItem('token');
             if (!token) {
                 setError('No token found. Please log in.');
@@ -16,18 +17,18 @@ const DevicesPage = ({ baseUrl }) => {
             }
     
             try {
-                const response = await fetch(`${baseUrl}/devices/`, {
+                const response = await fetch(`${baseUrl}/plants/`, {
                     headers: {
                         Authorization: `${token}`,
                     },
                 });
     
                 if (!response.ok) {
-                    throw new Error('Failed to fetch devices');
+                    throw new Error('Failed to fetch plants');
                 }
     
                 const data = await response.json();
-                setDevices(data.devices);
+                setPlants(data.plants);
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -35,7 +36,7 @@ const DevicesPage = ({ baseUrl }) => {
             }
         };
         return () => {
-            fetchDevices();
+            fetchPlants();
         }
     }, [baseUrl]);
 
@@ -44,11 +45,10 @@ const DevicesPage = ({ baseUrl }) => {
 
     return (
         <div className='flex-1 p-4'>
-            <h1>Your Devices</h1>
-            <p>You have {devices.length} device{devices.length!==  1 ? 's' : ''}:</p>
-            {devices.length ===  0 ? <p>No devices found.</p> : <p>{devices[0].deviceUUID}</p>}
+            <h1>My Plants</h1>
+            {plants.length ===  0 ? <p>No plants found.</p> : <GridView plants={plants} />}
         </div>
     );
 };
 
-export default DevicesPage;
+export default HomePage;

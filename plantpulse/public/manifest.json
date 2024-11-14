@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "PlantPulse",
+  "name": "PlantPulse: Your automated plant care assistant.",
   "icons": [
     {
       "src": "favicon.ico",

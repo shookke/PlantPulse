@@ -1,7 +1,27 @@
 const express = require('express');
+const multer = require('multer');
+const { nanoid } = require('nanoid');
 const authMiddleware = require('../middlewares/auth');
 const PlantType = require('../models/PlantType');
-const { cacheData, invalidateCacheByPattern } = require('../utils/cacheUtils'); // Import cache helpers
+const s3 = require('../config/s3Client'); // Import S3 client
+const { cacheData, invalidateCacheByKey, invalidateCacheByPattern } = require('../utils/cacheUtils'); // Import cache helpers
+
+// Multer configuration for handling Image upload
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 4096 * 4096 },  // 4MB file size limit
+  fileFilter: (req, file, cb) => {  // Validate file type
+    const fileTypes = /jpeg|jpg|png/;
+    const extname = fileTypes.test(file.originalname.toLowerCase());
+    const mimetype = fileTypes.test(file.mimetype);
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      return cb('Error: File type not supported');
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -10,11 +30,12 @@ router.use(authMiddleware);
 
 // Retrieve list of known plant types with Redis caching
 router.get('/', async (req, res) => {
-  const page = parseInt(req.query.p || 1);
-  const query = req.query.q || '';
+  const page = parseInt(req.query.papge || 1);
+  const limit = parseInt(req.query.limit || 20);
+  const query = req.query.query || '';
   const redisKey = query 
-    ? `plantTypes:search:${query}:page:${page}`
-    : `plantTypes:page:${page}`;
+    ? `plantTypes:search:${query}:page:${page}:limit:${limit}`
+    : `plantTypes:page:${page}:limit:${limit}`;
 
   try {
     // Fetch plant types and cache them
@@ -22,16 +43,20 @@ router.get('/', async (req, res) => {
       let types;
       if (query) {
         types = await PlantType.find({
-          $text: { $search: query }
+          $or: [
+            { commonName: { $regex: query, $options: 'i' } },
+            { scientificName: { $regex: query, $options: 'i' } },
+            { family: { $regex: query, $options: 'i' } }
+          ]
         })
-          .sort({ name: 1 })
-          .skip((page - 1) * 50)
-          .limit(50);
+          .sort({ commonName: 1 })
+          .skip((page - 1) * limit)
+          .limit(limit);
       } else {
         types = await PlantType.find()
-          .sort({ name: 1 })
-          .skip((page - 1) * 50)
-          .limit(50);
+          .sort({ commonName: 1 })
+          .skip((page - 1) * limit)
+          .limit(limit);
       }
 
       if (types.length === 0) {
@@ -93,5 +118,69 @@ router.post('/', async (req, res) => {
     return res.status(500).json({ message: 'Error creating plant type' });
   }
 });
+
+router.patch('/:plantTypeId', async (req, res) => {
+  try {
+    const id = req.params.plantTypeId;
+    const updates = req.body;
+    const plantType = await PlantType.findByIdAndUpdate(id, updates, {
+      runValidators: true
+    });
+
+    if (!plantType) {
+      return res.status(404).send({ message: 'PlantType not found.'});
+    }
+
+    await invalidateCacheByPattern(`plantTypes:page:*`); // Invalidate all cached pages
+
+    res.status(200).json(plantType);
+  } catch (error) {
+    return res.status(500).json({ message: 'Error updating plant type'});
+  }
+})
+
+// Delete PlantType and invalidate cache
+router.delete('/:plantTypeId', async (req, res) => {
+  try {
+    const { plantTypeId } = req.params;
+
+    // Delete the device
+    await PlantType.findByIdAndDelete(plantTypeId);
+
+    // Invalidate cache for this PlantType and the devices list
+    await invalidateCacheByKey(`plantType:${plantTypeId}`);
+    await invalidateCacheByKey(`devices:${req.user.id}`);
+    await invalidateCacheByKey(`plant:${req.params.plantId}`);
+    await invalidateCacheByKey(`plants:${req.user.id}`);
+
+    res.status(200).json({ message: 'PlantType deleted' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error deleting PlantType' });
+  }
+});
+
+router.post('/images', upload.single('file'), async (req, res) => {
+  const filename = `${nanoid()}.jpg`;
+  const plantName = req.body.plantName;
+  const s3Key = `${plantName}/${filename}`;
+
+  try {
+    // Save image in S3 bucket
+    const params = {
+      Bucket: 'classifier-training', // Bucket name
+      Key: s3Key,    // File path in bucket
+      Body: req.file.buffer, // File buffer
+      ContentType: req.file.mimetype // File mime type
+    };
+    
+    await s3.putObject(params).promise(); // Upload the file
+
+    res.status(201).send({ message: 'File uploaded successfully', filename });
+  } catch (error) {
+    console.error('Error uploading to S3:', error);
+    res.status(500).send({ message: 'Error uploading file' });
+  }
+})
 
 module.exports = router;

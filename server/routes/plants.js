@@ -218,7 +218,11 @@ router.get('/', async (req, res) => {
             return Plant.find({ user: req.user.id })
                 .populate('plantType')
                 .populate('container')
-                .populate('area');
+                .populate('area')
+                .populate({
+                    path: 'latestReading'
+                })
+                .exec();
         });
 
         return res.status(200).json({ plants });
@@ -233,15 +237,23 @@ router.get('/', async (req, res) => {
 // Required Authentication
 router.get('/:plantId', async (req, res) => {
     const redisKey = `plant:${req.params.plantId}`;
-
+    const limit = req.query.limit || 10;
+    const page = req.query.page || 1;
+    
     try {
         const plantData = await cacheData(redisKey, async () => {
-            const plant = await Plant.findById(req.params.plantId);
+            const plant = await Plant.findById(req.params.plantId)
+            .populate('plantType')
+            .exec();
+            
             if (!plant) throw new Error('Plant not found');
 
-            const devices = await Device.find({ plant: req.params.plantId });
-            const readings = await Reading.find({ plant: req.params.plantId });
-
+            const devices = await Device.find({ plants: req.params.plantId });
+            const readings = await Reading.find({ plant: req.params.plantId })
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .exec();
             return { plant, devices, readings };
         });
 
@@ -254,7 +266,7 @@ router.get('/:plantId', async (req, res) => {
 
 // Create a new plant
 // POST /api/v1/plants
-// Required Authentication
+// Requires Authentication
 // @body: { 
 //     plantName, 
 //     plantType, 
@@ -263,35 +275,77 @@ router.get('/:plantId', async (req, res) => {
 // }
 router.post('/', async (req, res) => {
     try {
-        const { plant, plantType, container, area, datePlanted } = req.body;
+        const { plant, plantType, plantName, container, area, datePlanted } = req.body;
 
-        const plantData = plant || { plantType, container, area, datePlanted };
+        const plantData = plant || { plantType, container, area, plantName, datePlanted };
         if (!plant && !plantType) {
             return res.status(400).json({ message: 'Missing required plant data.' });
         }
 
-        const user = await User.findById(req.user.id);
-        if (!user) {
-            return res.status(404).json({ message: 'User not found.' });
-        }
+        plantData.user = req.user.id;
 
-        plantData.user = user;
-        const newPlant = await Plant.create(plantData);
-        newPlant.user = undefined;
+        const newPlant =  new Plant(plantData);
+        const savedPlant = await newPlant.save();
+
+        // Optionally select specific fields
+        await savedPlant.populate({
+            path: 'plantType',
+        });
 
         // Invalidate cache for plants
         await invalidateCacheByKey(`plants:${req.user.id}`);
 
-        return res.status(201).json({ newPlant });
+        return res.status(201).json(savedPlant);
     } catch (error) {
         console.error('Error creating new plant:', error);
         return res.status(500).json({ message: 'Error creating new plant.', error });
     }
 });
 
+// Update a plant
+// PATCH /api/v1/plants/:plantId
+// Requires Authentication
+// Cannot update user, plantType
+// Cannot remove user, plantType, plantName
+// Set attribute to null to remove
+// @body: {
+//      "updates": {
+//          "container": "<containerId>",
+//          "area": "<areaId>",
+//          "plantName": "<plantName>",
+//          "datePlanted": "Date",
+//          "dateHarvested": null,
+//          "lastFertilization": "Date"
+//       }
+// }
+router.patch('/:plantId', async (req, res) => {
+    try {
+        const { plantId } = req.params;
+        const { updates } = req.body;
+
+        // Update plant with validation
+        const plant = await Plant.findByIdAndUpdate(plantId, updates, {
+            runValidators: true
+        })
+
+        const device = await Device.findOne({ plants: plantId });
+
+        // Invalidate cache for this specific device and devices list
+        await invalidateCacheByKey(`plant:${plantId}`);
+        await invalidateCacheByKey(`plants:${req.user.id}`);
+        if (device) { await invalidateCacheByKey(`device:${device._id}`); }
+        await invalidateCacheByKey(`devices:${req.user.id}`);
+
+        res.status(200).json(plant);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: 'Error updating plant', error });
+    }
+});
+
 // Remove a plant
 // DELETE /api/v1/plants/:plantId
-// Requited Authentication
+// Requires Authentication
 router.delete('/:plantId', async (req, res) => {
     try {
         await Plant.findByIdAndDelete(req.params.plantId);

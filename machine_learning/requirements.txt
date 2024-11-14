@@ -4,3 +4,6 @@ minio>=7.2.8
 pillow>=9.4.0
 numpy==1.25.0
 celery[redis]==5.2.6
+boto3>=1.20.0
+scipy>=1.7.3
+opencv-python>=4.10.0
