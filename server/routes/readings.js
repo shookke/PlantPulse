@@ -8,7 +8,7 @@ const Plant = require('../models/Plant');
 const Device = require('../models/Device');
 const s3 = require('../config/s3Client');
 const taskQueue = require('../config/taskQueue');
-const { cacheData, invalidateCacheByPattern, invalidateCacheByKey } = require('../utils/cacheUtils'); // Import cache helpers
+const { cacheData, getCacheData, invalidateCacheByPattern, invalidateCacheByKey } = require('../utils/cacheUtils'); // Import cache helpers
 
 const router = express.Router();
 
@@ -31,12 +31,13 @@ const upload = multer({
   }
 });
 
-// Retrieve a user's plant readings by plant ID, with Redis caching
+// Retrieve a user's plant readings by plant ID
 router.get('/:plantId', async (req, res) => {
   const { plantId } = req.params;
   const page = parseInt(req.query.page || 1);
   const limit = parseInt(req.query.limit || 20);
   const redisKey = `plant:${plantId}:readings:page:${page}`;
+  
 
   try {
     // Fetch plant readings and cache them
@@ -52,9 +53,24 @@ router.get('/:plantId', async (req, res) => {
         .skip((page - 1) * limit)
         .limit(limit)
         .exec();
-      
-      
-      return { plant, readings: readingsList };
+      if (readingsList.length != 0) {
+        const predictionKey = `plant:predictions:${readingsList[0].imageFilename}`;
+
+        console.log(predictionKey);
+
+        var prediction = await getCacheData(predictionKey);
+
+        if (!prediction) {
+          console.error('No prediction available.');
+          prediction = undefined;
+        } else {
+          prediction = prediction['prediction'];
+        }
+
+        return { plant, readings: readingsList, prediction: prediction };
+      } else {
+        return { message: "No readings found."};
+      }
     });
 
     return res.status(200).json(data);
@@ -94,11 +110,19 @@ router.post('/', async (req, res) => {
     } else {
       console.error('Invalid plantId for cache invalidation');
     }
+
     // Return response to client
     res.status(201).json(newReading);
 
     // Add reading to be processed to the task queue
-    await taskQueue.add({ newReading });
+    taskQueue.add({ 
+      plant: plantId
+    },
+    {
+      attempts: 3, // Retry up to 3 times if the job fails
+      backoff: 5000, // Wait 5 seconds before retrying
+      removeOnComplete: true,
+    });
 
   } catch (error) {
     console.error(error);

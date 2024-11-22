@@ -3,6 +3,7 @@ const authMiddleware = require('../middlewares/auth');
 const User = require('../models/User');
 const Device = require('../models/Device');
 const Reading = require('../models/Reading');
+const Task = require('../models/Task');
 const Plant = require('../models/Plant');
 const Area = require('../models/Area');
 const Container = require('../models/Container');
@@ -347,11 +348,17 @@ router.patch('/:plantId', async (req, res) => {
 // DELETE /api/v1/plants/:plantId
 // Requires Authentication
 router.delete('/:plantId', async (req, res) => {
+    const plantId = req.params.plantId;
+
     try {
-        await Plant.findByIdAndDelete(req.params.plantId);
+        await Plant.findByIdAndDelete(plantId);
+
+        await Task.deleteMany({ plant: plantId });
+
+        await Device.updateMany({ plants: plantId }, { $pull: { plants: plantId }})
 
         // Invalidate cache for this plant and the user's plants list
-        await invalidateCacheByKey(`plant:${req.params.plantId}`);
+        await invalidateCacheByKey(`plant:${plantId}`);
         await invalidateCacheByKey(`plants:${req.user.id}`);
 
         return res.status(204).json();

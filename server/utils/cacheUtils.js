@@ -11,8 +11,29 @@ async function cacheData(key, fetchFunction, ttl = 3600) {
   return freshData;
 }
 
-// Helper function to invalidate cache
-// Function to invalidate a specific key
+// Helper function to retrieve item from cache by key
+async function getCacheData(key) {
+    if (!key || typeof key !== 'string') {
+        throw new Error('Invalid cache key provided');
+    }
+
+    try {
+        const result = await redisClient.get(key);
+        if (!result) {
+            throw new Error('No item found for provided cache key');
+        }
+
+        const parsedResult = JSON.parse(result);
+        
+        return parsedResult;
+
+    } catch (error) {
+        console.error(`Error retrieving cache item: ${error}`)
+        return null;
+    }
+}
+
+// Helper function to invalidate a specific key in cache
 async function invalidateCacheByKey(key) {
   if (!key || typeof key !== 'string') {
       throw new Error('Invalid cache key provided');
@@ -85,6 +106,7 @@ async function invalidateCacheByPattern(pattern) {
 
 module.exports = {
   cacheData,
+  getCacheData,
   invalidateCacheByKey,
   invalidateCacheByPattern,
 };
