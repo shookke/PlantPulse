@@ -31,7 +31,7 @@ def calc_ndvi(image):
     b, g, r = cv2.split(image)
     bottom = (r.astype(float) + b.astype(float))
     bottom[bottom==0] = 0.01
-    ndvi = (b.astype(float) - r) / bottom
+    ndvi = (r.astype(float) - b) / bottom
     return ndvi
 
 if __name__ == "__main__":
